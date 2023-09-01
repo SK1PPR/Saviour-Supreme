@@ -1,10 +1,12 @@
 import socket
+import os
  
 IP = socket.gethostbyname(socket.gethostname())
 PORT = 4456
 ADDR = (IP, PORT)
 FORMAT = "utf-8"
 SIZE = 1024
+CLIENT_DATA_PATH = "client_data"
 
 def main():
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -12,13 +14,38 @@ def main():
     
     while True:
         data = client.recv(SIZE).decode(FORMAT)
-        cmd, msg = data.split("@")
+        data = data.split("@")
+        cmd = data[0]
+        msg = data[1]
  
         if cmd == "DISCONNECTED":
             print(f"[SERVER]: {msg}")
             break
         elif cmd == "OK":
             print(f"{msg}")
+        elif cmd == "NOR":
+            name, text = data[1], data[2]
+            filepath = os.path.join(CLIENT_DATA_PATH, name)
+            with open(filepath, "w") as f:
+                f.write(text)
+
+            print("File downloaded succesfully")
+        elif cmd == "AUTH":
+            print(f"{msg}")
+            print("Are you a GUEST or ADMIN?\n")
+            auth = input("> ")
+            if auth == "GUEST":
+                client.send("GUEST".encode(FORMAT))
+            elif auth == "ADMIN":
+                username = input("ENTER YOUR USERNAME: ")
+                password = input("ENTER YOUR PASSWORD: ")
+                data = f"ADMIN@{username}@{password}"
+                client.send(data.encode(FORMAT))
+            else:
+                data = "INVALID"
+                client.send(data.encode(FORMAT))
+            continue
+        
  
         data = input("> ")
         data = data.split(" ")
@@ -41,6 +68,12 @@ def main():
  
             filename = path.split("/")[-1]
             send_data = f"{cmd}@{filename}@{text}"
+            client.send(send_data.encode(FORMAT))
+        elif cmd == "DOWNLOAD":
+            send_data = f"{cmd}@{data[1]}".encode(FORMAT)
+            client.send(send_data)
+        else:
+            send_data = "INVALID"
             client.send(send_data.encode(FORMAT))
             
     print("Disconnected from the server.")
