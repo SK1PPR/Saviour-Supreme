@@ -8,6 +8,9 @@ FORMAT = "utf-8"
 SIZE = 1024
 CLIENT_DATA_PATH = "client_data"
 
+PORT_DATA = 4556
+ADDR_DATA = (IP, PORT_DATA)
+
 def main():
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect(ADDR)
@@ -23,7 +26,7 @@ def main():
             break
         elif cmd == "OK":
             print(f"{msg}")
-        elif cmd == "NOR":
+        elif cmd == "S":
             name, text = data[1], data[2]
             filepath = os.path.join(CLIENT_DATA_PATH, name)
             with open(filepath, "w") as f:
@@ -70,8 +73,21 @@ def main():
             send_data = f"{cmd}@{filename}@{text}"
             client.send(send_data.encode(FORMAT))
         elif cmd == "DOWNLOAD":
+            client_file = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_file.connect(ADDR_DATA)
             send_data = f"{cmd}@{data[1]}".encode(FORMAT)
             client.send(send_data)
+            
+            received_file_name = CLIENT_DATA_PATH + '/' + data[1].split("/")[-1]
+            
+            with open(received_file_name,"wb") as file:
+                while True:
+                    file_data = client_file.recv(SIZE)
+                    if not file_data:
+                        break
+                    file.write(file_data)   
+            client_file.close()     
+            
         else:
             send_data = "INVALID"
             client.send(send_data.encode(FORMAT))

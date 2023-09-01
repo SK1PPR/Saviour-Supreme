@@ -9,6 +9,12 @@ SIZE = 1024
 FORMAT = 'utf-8'
 SERVER_DATA_PATH = "server_data"
 
+PORT_DATA = 4556
+ADDR_DATA = (IP,PORT_DATA)
+server_data = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_data.bind(ADDR_DATA)
+
+
 user_credentials = {
     'user1': 'password1',
     'user2': 'password2',
@@ -86,16 +92,27 @@ def help_admin(conn):
 def access_denied(conn):
     conn.send("OK@Access Denied")
     
-def download(conn,data):
-    path = SERVER_DATA_PATH + data[1]
     
-    with open(f"{path}", "r") as f:
-        text = f.read()
- 
-    filename = path.split("/")[-1]
-    send_data = f"NOR@{filename}@{text}"
-    conn.send(send_data.encode(FORMAT))
+def get_packet_count(filename):
+    byte_size = os.stat(filename).st_size
+    packet_count = byte_size // SIZE
+    if byte_size % SIZE:
+        packet_count += 1
+    return packet_count   
+    
 
+def download(conn,data):
+    conn_data, addr_data = server_data.accept()
+    path = SERVER_DATA_PATH + "/" + data[1]
+    packet_count = get_packet_count(path)
+    
+    f = open(path, "rb")
+    print(f"Sending {path} with {packet_count} packets to {addr_data}")
+    while packet_count > 0 :
+        conn_data.send(f.read(SIZE))
+        packet_count -= 1
+    f.close()
+    conn.send("OK@DOWNLOADED FILE".encode(FORMAT))
 
 
 #main function
@@ -106,6 +123,8 @@ def main():
     server.bind(ADDR)
     server.listen()
     print('[LISTENING] Server is listening...')
+    server_data.listen()
+    print('[DATA-STREAM-LISTENING] Data stream initialized...')
     
     ''' Accepting connections from clitens'''
     while True:
@@ -180,6 +199,8 @@ def handle_admin(conn,addr):
             break
         elif cmd == "HELP":
             help_admin(conn)
+        elif cmd == "DOWNLOAD":
+            download(conn,data)
     
     
 if __name__ == '__main__':
