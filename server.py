@@ -1,6 +1,7 @@
 import os
 import socket
 import threading
+from tqdm import tqdm
 
 IP = socket.gethostbyname(socket.gethostname())
 PORT = 4456
@@ -106,11 +107,13 @@ def download(conn,data):
     path = SERVER_DATA_PATH + "/" + data[1]
     packet_count = get_packet_count(path)
     
+    bar = tqdm(range(packet_count), f"Sending {data[1]}", unit="B", unit_scale=True, unit_divisor=1024)
     f = open(path, "rb")
     print(f"Sending {path} with {packet_count} packets to {addr_data}")
     while packet_count > 0 :
         conn_data.send(f.read(SIZE))
         packet_count -= 1
+        bar.update(1)
     f.close()
     conn.send("OK@DOWNLOADED FILE".encode(FORMAT))
 

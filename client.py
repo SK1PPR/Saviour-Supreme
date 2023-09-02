@@ -65,7 +65,7 @@ def main():
             client.send(f"{cmd}@{data[1]}".encode(FORMAT))
         elif cmd == "UPLOAD":
             path = data[1]
-    
+
             with open(f"{path}", "r") as f:
                 text = f.read()
  
