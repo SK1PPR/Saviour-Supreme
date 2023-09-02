@@ -1,5 +1,6 @@
 import socket
 import os
+from tqdm import tqdm
  
 IP = socket.gethostbyname(socket.gethostname())
 PORT = 4456
@@ -11,7 +12,15 @@ CLIENT_DATA_PATH = "client_data"
 PORT_DATA = 4556
 ADDR_DATA = (IP, PORT_DATA)
 
+def get_packet_count(filename):
+    byte_size = os.stat(filename).st_size
+    packet_count = byte_size // SIZE
+    if byte_size % SIZE:
+        packet_count += 1
+    return packet_count   
+
 def main():
+    admin = False
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect(ADDR)
     
@@ -38,8 +47,10 @@ def main():
             print("Are you a GUEST or ADMIN?\n")
             auth = input("> ")
             if auth == "GUEST":
+                admin = False
                 client.send("GUEST".encode(FORMAT))
             elif auth == "ADMIN":
+                admin = True
                 username = input("ENTER YOUR USERNAME: ")
                 password = input("ENTER YOUR PASSWORD: ")
                 data = f"ADMIN@{username}@{password}"
@@ -64,14 +75,33 @@ def main():
         elif cmd == "DELETE":
             client.send(f"{cmd}@{data[1]}".encode(FORMAT))
         elif cmd == "UPLOAD":
-            path = data[1]
-
-            with open(f"{path}", "r") as f:
-                text = f.read()
- 
+            client_file = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_file.connect(ADDR_DATA)
+            path = CLIENT_DATA_PATH + '/' + data[1]
+            if not os.path.exists(path):
+                print(f"{data[1]} does not exist")
+                send_data = "INVALID"
+                client.send(send_data.encode(FORMAT))
+                continue
             filename = path.split("/")[-1]
-            send_data = f"{cmd}@{filename}@{text}"
+            send_data = f"{cmd}@{filename}"
             client.send(send_data.encode(FORMAT))
+            
+            if not admin:
+                continue
+            
+            packet_count = get_packet_count(path)
+            bar = tqdm(range(packet_count), f"Sending {data[1]}", unit="B", unit_scale=True, unit_divisor=1)
+            f = open(path, "rb")
+            print(f"Sending {path} with {packet_count} packets to server")
+            while packet_count > 0 :
+                client_file.send(f.read(SIZE))
+                packet_count -= 1
+                bar.update(1)
+            f.close()
+            client_file.close()
+            
+            
         elif cmd == "DOWNLOAD":
             client_file = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_file.connect(ADDR_DATA)
@@ -88,6 +118,10 @@ def main():
                     file.write(file_data)   
             client_file.close()     
             
+        elif cmd == "CD":
+            client.send(f"{cmd}@{data[1]}".encode(FORMAT))
+            
+        
         else:
             send_data = "INVALID"
             client.send(send_data.encode(FORMAT))

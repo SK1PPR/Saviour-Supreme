@@ -38,10 +38,16 @@ def list(conn):
     conn.send(send_data.encode(FORMAT))
 
 def upload(conn,data):
-    name, text = data[1], data[2]
-    filepath = os.path.join(SERVER_DATA_PATH, name)
-    with open(filepath, "w") as f:
-        f.write(text)
+    conn_data, addr_data = server_data.accept()
+    
+    received_file_name = SERVER_DATA_PATH + '/' + data[1].split("/")[-1]
+    print(f"{addr_data} uploading {received_file_name}")
+    with open(received_file_name,"wb") as file:
+        while True:
+            file_data = conn_data.recv(SIZE)
+            if not file_data:
+                break
+            file.write(file_data)   
         
     send_data = "OK@File uploaded successfully."
     conn.send(send_data.encode(FORMAT))
@@ -105,6 +111,13 @@ def get_packet_count(filename):
 def download(conn,data):
     conn_data, addr_data = server_data.accept()
     path = SERVER_DATA_PATH + "/" + data[1]
+    
+    if not os.path.exists(path):
+        send_data = "OK@FILE NOT FOUND"
+        conn.send(send_data.encode(FORMAT))
+        conn_data.close()
+        return
+    
     packet_count = get_packet_count(path)
     
     bar = tqdm(range(packet_count), f"Sending {data[1]}", unit="B", unit_scale=True, unit_divisor=1024)
@@ -117,6 +130,15 @@ def download(conn,data):
     f.close()
     conn.send("OK@DOWNLOADED FILE".encode(FORMAT))
 
+def change_dir(conn, data):
+    global SERVER_DATA_PATH
+    if not os.path.exists(os.path.join(SERVER_DATA_PATH, data[1])):
+        send_data = "OK@INVALID DIRECTORY"
+        conn.send(send_data.encode(FORMAT))
+        return
+    SERVER_DATA_PATH = os.path.join(SERVER_DATA_PATH, data[1])
+    send_data = f"OK@Directory changed to {data[1]}"
+    conn.send(send_data.encode(FORMAT))
 
 #main function
 def main():
@@ -179,6 +201,8 @@ def handle_guest(conn,addr):
             help_guest(conn)
         elif cmd == "DOWNLOAD":
             download(conn,data)
+        elif cmd == "CD":
+            change_dir(conn,data)
         
 def handle_admin(conn,addr):
     conn.send("OK@Entered file server as admin".encode(FORMAT))
@@ -204,6 +228,8 @@ def handle_admin(conn,addr):
             help_admin(conn)
         elif cmd == "DOWNLOAD":
             download(conn,data)
+        elif cmd == "CD":
+            change_dir(conn,data)
     
     
 if __name__ == '__main__':
