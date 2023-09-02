@@ -8,6 +8,7 @@ PORT = 4456
 ADDR = (IP,PORT)
 SIZE = 1024
 FORMAT = 'utf-8'
+ORIGINAL_SERVER_DATA_PATH = "server_data"
 SERVER_DATA_PATH = "server_data"
 
 PORT_DATA = 4556
@@ -132,13 +133,41 @@ def download(conn,data):
 
 def change_dir(conn, data):
     global SERVER_DATA_PATH
-    if not os.path.exists(os.path.join(SERVER_DATA_PATH, data[1])):
+    
+    if data[1] == "./":
+        temp = SERVER_DATA_PATH.split('/')
+        if(len(temp)==1):
+            send_data = "OK@ALREADY AT ROOT"
+            conn.send(send_data.encode(FORMAT))
+            return
+        else:
+            temp.pop()
+            SERVER_DATA_PATH = '/'.join(temp)
+            
+    elif not os.path.exists(os.path.join(SERVER_DATA_PATH, data[1])):
         send_data = "OK@INVALID DIRECTORY"
         conn.send(send_data.encode(FORMAT))
         return
-    SERVER_DATA_PATH = os.path.join(SERVER_DATA_PATH, data[1])
+    
+    else:
+        SERVER_DATA_PATH = os.path.join(SERVER_DATA_PATH, data[1])
     send_data = f"OK@Directory changed to {data[1]}"
     conn.send(send_data.encode(FORMAT))
+
+def rename(conn,data):
+    path_init = os.path.join(SERVER_DATA_PATH,data[1])
+    path_final = os.path.join(SERVER_DATA_PATH,data[2])
+    try:
+        os.rename(path_init, path_final)
+        send_data = "OK@RENAME SUCCESSFUL"
+        conn.send(send_data.encode(FORMAT))  
+    except FileNotFoundError:
+        send_data = "OK@FILE NOT FOUND"
+        conn.send(send_data.encode(FORMAT))
+    except OSError as e:
+        print(f"An error occurred while renaming the file: {e}")
+        send_data = "OK@INVALID COMMAND"
+        conn.send(send_data.encode(FORMAT))
 
 #main function
 def main():
@@ -203,6 +232,8 @@ def handle_guest(conn,addr):
             download(conn,data)
         elif cmd == "CD":
             change_dir(conn,data)
+        elif cmd == "RENAME":
+            invalid(conn)
         
 def handle_admin(conn,addr):
     conn.send("OK@Entered file server as admin".encode(FORMAT))
@@ -230,6 +261,8 @@ def handle_admin(conn,addr):
             download(conn,data)
         elif cmd == "CD":
             change_dir(conn,data)
+        elif cmd == "RENAME":
+            rename(conn,data)
     
     
 if __name__ == '__main__':

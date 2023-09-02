@@ -99,9 +99,7 @@ def main():
                 packet_count -= 1
                 bar.update(1)
             f.close()
-            client_file.close()
-            
-            
+            client_file.close()   
         elif cmd == "DOWNLOAD":
             client_file = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_file.connect(ADDR_DATA)
@@ -116,12 +114,11 @@ def main():
                     if not file_data:
                         break
                     file.write(file_data)   
-            client_file.close()     
-            
+            client_file.close()      
         elif cmd == "CD":
             client.send(f"{cmd}@{data[1]}".encode(FORMAT))
-            
-        
+        elif cmd == "RENAME":
+            client.send(f"{cmd}@{data[1]}@{data[2]}".encode(FORMAT))
         else:
             send_data = "INVALID"
             client.send(send_data.encode(FORMAT))
