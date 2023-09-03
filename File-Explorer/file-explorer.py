@@ -97,4 +97,7 @@ tk.Button(client_footer,image=infoImg,command=info_button).pack(side=tk.RIGHT,pa
 footer = tk.Frame(root)
 footer.pack(side=tk.BOTTOM,fill="x")
 
+while True:
+    continue
+
 root.mainloop()

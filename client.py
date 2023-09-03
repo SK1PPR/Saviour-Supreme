@@ -1,6 +1,8 @@
 import socket
 import os
 from tqdm import tqdm
+from getpass import getpass
+
  
 IP = socket.gethostbyname(socket.gethostname())
 PORT = 4456
@@ -35,13 +37,6 @@ def main():
             break
         elif cmd == "OK":
             print(f"{msg}")
-        elif cmd == "S":
-            name, text = data[1], data[2]
-            filepath = os.path.join(CLIENT_DATA_PATH, name)
-            with open(filepath, "w") as f:
-                f.write(text)
-
-            print("File downloaded succesfully")
         elif cmd == "AUTH":
             print(f"{msg}")
             print("Are you a GUEST or ADMIN?\n")
@@ -52,7 +47,7 @@ def main():
             elif auth == "ADMIN":
                 admin = True
                 username = input("ENTER YOUR USERNAME: ")
-                password = input("ENTER YOUR PASSWORD: ")
+                password = getpass()
                 data = f"ADMIN@{username}@{password}"
                 client.send(data.encode(FORMAT))
             else:
@@ -118,6 +113,8 @@ def main():
         elif cmd == "CD":
             client.send(f"{cmd}@{data[1]}".encode(FORMAT))
         elif cmd == "RENAME":
+            client.send(f"{cmd}@{data[1]}@{data[2]}".encode(FORMAT))
+        elif cmd == "MOVE":
             client.send(f"{cmd}@{data[1]}@{data[2]}".encode(FORMAT))
         else:
             send_data = "INVALID"

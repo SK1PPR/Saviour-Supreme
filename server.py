@@ -2,6 +2,7 @@ import os
 import socket
 import threading
 from tqdm import tqdm
+import shutil
 
 IP = socket.gethostbyname(socket.gethostname())
 PORT = 4456
@@ -16,6 +17,7 @@ ADDR_DATA = (IP,PORT_DATA)
 server_data = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_data.bind(ADDR_DATA)
 
+clients = []
 
 user_credentials = {
     'user1': 'password1',
@@ -30,7 +32,7 @@ user_credentials = {
 
 def list(conn):
     files = os.listdir(SERVER_DATA_PATH)
-    send_data = "OK@"
+    send_data = "LIST@"
        
     if len(files) == 0:
         send_data += "The server directory is empty"
@@ -50,12 +52,14 @@ def upload(conn,data):
                 break
             file.write(file_data)   
         
-    send_data = "OK@File uploaded successfully."
+    send_data = "MSG@File uploaded successfully."
     conn.send(send_data.encode(FORMAT))
+    for client in clients:
+            list(client)
 
 def delete(conn,data):
     files = os.listdir(SERVER_DATA_PATH)
-    send_data = "OK@"
+    send_data = "MSG@"
     filename = data[1]
  
     if len(files) == 0:
@@ -68,9 +72,11 @@ def delete(conn,data):
             send_data += "File not found."
  
     conn.send(send_data.encode(FORMAT))
+    for client in clients:
+            list(client)
     
 def invalid(conn):
-    send_data = "OK@Invalid Command"
+    send_data = "MSG@Invalid Command"
     conn.send(send_data.encode(FORMAT))
 
 def logout(conn,addr):
@@ -78,8 +84,11 @@ def logout(conn,addr):
     conn.close()
     
 def help_guest(conn):
-    data = "OK@"
+    data = "MSG@"
+    data += "WELCOME TO THE SERVER AS GUEST\n"
     data += "LIST: List all the files from the server.\n"
+    data += "CD <dir_name>: Change directory on the server\n"
+    data += "CD ./ : Go to parent directory on the server\n"
     data += "DOWNLOAD <filename>: Download a file from the server.\n"
     data += "LOGOUT: Disconnect from the server.\n"
     data += "HELP: List all the commands."
@@ -87,18 +96,23 @@ def help_guest(conn):
     conn.send(data.encode(FORMAT))
 
 def help_admin(conn):
-    data = "OK@"
+    data = "MSG@"
+    data+= "WELCOME TO THE SERVER ADMINISTRATOR\n"
     data += "LIST: List all the files from the server.\n"
-    data += "UPLOAD : Upload a file to the server.\n"
+    data += "UPLOAD <filename>: Upload a file to the server.\n"
+    data += "CD <dir_name>: Change directory on the server\n"
+    data += "CD ./ : Go to parent directory on the server\n"
+    data += "RENAME <original_filename> <new_filename>: Rename a file on the server\n"
     data += "DELETE : Delete a file from the server.\n"
     data += "DOWNLOAD <filename>: Download a file from the server.\n"
+    data += "MOVE <curr_dir> <final_dir>: Move a file in the server\n"
     data += "LOGOUT: Disconnect from the server.\n"
     data += "HELP: List all the commands."
  
     conn.send(data.encode(FORMAT))
 
 def access_denied(conn):
-    conn.send("OK@Access Denied")
+    conn.send("MSG@Access Denied")
     
     
 def get_packet_count(filename):
@@ -114,7 +128,7 @@ def download(conn,data):
     path = SERVER_DATA_PATH + "/" + data[1]
     
     if not os.path.exists(path):
-        send_data = "OK@FILE NOT FOUND"
+        send_data = "MSG@FILE NOT FOUND"
         conn.send(send_data.encode(FORMAT))
         conn_data.close()
         return
@@ -129,7 +143,7 @@ def download(conn,data):
         packet_count -= 1
         bar.update(1)
     f.close()
-    conn.send("OK@DOWNLOADED FILE".encode(FORMAT))
+    conn.send("MSG@DOWNLOADED FILE".encode(FORMAT))
 
 def change_dir(conn, data):
     global SERVER_DATA_PATH
@@ -137,7 +151,7 @@ def change_dir(conn, data):
     if data[1] == "./":
         temp = SERVER_DATA_PATH.split('/')
         if(len(temp)==1):
-            send_data = "OK@ALREADY AT ROOT"
+            send_data = "MSG@ALREADY AT ROOT"
             conn.send(send_data.encode(FORMAT))
             return
         else:
@@ -145,13 +159,13 @@ def change_dir(conn, data):
             SERVER_DATA_PATH = '/'.join(temp)
             
     elif not os.path.exists(os.path.join(SERVER_DATA_PATH, data[1])):
-        send_data = "OK@INVALID DIRECTORY"
+        send_data = "MSG@INVALID DIRECTORY"
         conn.send(send_data.encode(FORMAT))
         return
     
     else:
         SERVER_DATA_PATH = os.path.join(SERVER_DATA_PATH, data[1])
-    send_data = f"OK@Directory changed to {data[1]}"
+    send_data = f"MSG@Directory changed to {data[1]}"
     conn.send(send_data.encode(FORMAT))
 
 def rename(conn,data):
@@ -159,15 +173,36 @@ def rename(conn,data):
     path_final = os.path.join(SERVER_DATA_PATH,data[2])
     try:
         os.rename(path_init, path_final)
-        send_data = "OK@RENAME SUCCESSFUL"
+        send_data = "MSG@RENAME SUCCESSFUL"
         conn.send(send_data.encode(FORMAT))  
     except FileNotFoundError:
-        send_data = "OK@FILE NOT FOUND"
+        send_data = "MSG@FILE NOT FOUND"
         conn.send(send_data.encode(FORMAT))
     except OSError as e:
         print(f"An error occurred while renaming the file: {e}")
-        send_data = "OK@INVALID COMMAND"
+        send_data = "MSG@INVALID COMMAND"
         conn.send(send_data.encode(FORMAT))
+    else:
+        for client in clients:
+            list(client)
+    
+def move(conn,data):
+    path_init = os.path.join(SERVER_DATA_PATH,data[1])
+    path_final = os.path.join(SERVER_DATA_PATH,data[2])
+    try:
+        shutil.move(path_init, path_final)
+        send_data = "MSG@FILE MOVED SUCCESSFULLY"
+        conn.send(send_data.encode(FORMAT))  
+    except FileNotFoundError:
+        send_data = "MSG@FILE NOT FOUND"
+        conn.send(send_data.encode(FORMAT))
+    except OSError as e:
+        print(f"An error occurred while moving the file: {e}")
+        send_data = "MSG@INVALID COMMAND"
+        conn.send(send_data.encode(FORMAT))
+    else:
+        for client in clients:
+            list(client)
 
 #main function
 def main():
@@ -183,6 +218,7 @@ def main():
     ''' Accepting connections from clitens'''
     while True:
         conn, addr = server.accept()
+        clients.append(conn)
         threading.Thread(target=handle_client, args=(conn,addr)).start()
         print(f'[ACTIVE CONNECTIONS] {threading.active_count() - 1}')
         
@@ -193,22 +229,18 @@ def handle_client(conn,addr):
     
     data = conn.recv(SIZE).decode(FORMAT)
     data = data.split("@")
-    cmd = data[0]
     
-    
-    if cmd == "GUEST":
-        handle_guest(conn,addr)       
-    elif cmd == "INVALID":
-        conn.send("AUTH@Invalid Command".encode(FORMAT))
-    else:
-        if data[1] in user_credentials and user_credentials[data[1]] == data[2]:
-            handle_admin(conn,addr)
+    if data[1] in user_credentials and user_credentials[data[1]] == data[2]:
+        if(data[1] == 'user1'):
+            handle_guest(conn,addr)
         else:
-            conn.send("AUTH@Invalid Credentials".encode(FORMAT)) 
+            handle_admin(conn,addr) 
+    else:
+        conn.send("AUTH@Invalid Credentials".encode(FORMAT)) 
         
 def handle_guest(conn,addr):
-    conn.send("OK@Entered file server as guest".encode(FORMAT))
-    # help_guest(conn)
+    conn.send("OK@Welcome to the file server!".encode(FORMAT))
+    list(conn)
     
     while True:
         data = conn.recv(SIZE).decode(FORMAT)
@@ -234,10 +266,12 @@ def handle_guest(conn,addr):
             change_dir(conn,data)
         elif cmd == "RENAME":
             invalid(conn)
+        elif cmd == "MOVE":
+            invalid(conn)
         
 def handle_admin(conn,addr):
-    conn.send("OK@Entered file server as admin".encode(FORMAT))
-    # help_admin(conn)
+    conn.send("OK@Welcome to the file server!".encode(FORMAT))
+    list(conn)
     
     while True:
         data = conn.recv(SIZE).decode(FORMAT)
@@ -263,6 +297,8 @@ def handle_admin(conn,addr):
             change_dir(conn,data)
         elif cmd == "RENAME":
             rename(conn,data)
+        elif cmd == "MOVE":
+            move(conn,data)
     
     
 if __name__ == '__main__':
