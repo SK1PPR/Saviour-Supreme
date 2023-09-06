@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from tkinter import *
 from tkinter import font
 from tkinter import ttk
@@ -8,7 +9,7 @@ from tqdm import tqdm
 import threading
 
 IP = socket.gethostbyname(socket.gethostname())
-PORT = 4456
+PORT = 4476
 ADDR = (IP,PORT)
 FORMAT = 'utf-8'
 SIZE = 1024
@@ -66,8 +67,10 @@ class GUI:
     def layout(self, name):
         self.window.deiconify()
         self.window.title(f"Logged in as {name}")
-        self.window.resizable(width=False,height=True)
-        self.window.configure(width=500,height=400)
+        self.window.geometry("500x400")
+        self.window.minsize(500,400)
+        self.window.maxsize(500,400)
+        
         self.window.config(cursor='arrow')
         
         self.body = Frame(self.window,bg="#F1F0E8")
@@ -79,13 +82,10 @@ class GUI:
         self.server_header.pack(side=TOP,fill="x")
         self.label_server = Label(self.server_header).pack(side=LEFT,padx=2,pady=2)
         
-        self.serv_files = Text(self.server_frame, bg="#EEE0C9",fg="#96B6C5",font="Helvetica 14",padx=5,pady=5)
-        self.serv_files.place(relheight=0.845,relwidth=1,rely=0.08)
-        self.serv_files.config(state=DISABLED)
+        self.serv_files = Text(self.server_frame, bg="#EEE0C9",fg="black",font="Helvetica 14",padx=5,pady=5)
+        self.serv_files.place(relheight=1,relwidth=0.94)
+        self.serv_files.config(state=DISABLED,highlightthickness=0)
         
-        scrollbar1 = Scrollbar(self.serv_files)
-        scrollbar1.place(relheight=1,relx=0.974)
-        scrollbar1.config(command=self.serv_files.yview)
         
         self.seperator = ttk.Separator(self.body,orient="vertical")
         self.seperator.place(relx=0.47, rely=0, relwidth=0.01, relheight=1)
@@ -103,19 +103,16 @@ class GUI:
         self.label_command = Label(self.footer,text="Command: ",font="Helvetica 12")
         self.label_command.pack(side=LEFT,padx=2,pady=2)
         self.entry_command = Entry(self.footer,font="Helvetica 14")
-        self.entry_command.pack(side=RIGHT,padx=2,pady=2)
+        self.entry_command.pack(side=LEFT,padx=2,pady=2)
         self.entry_command.focus()
         self.snd_button = Button(self.footer,text="Send", font = "Helvetica 12",command=lambda: self.send_button(self.entry_command.get()))
         self.snd_button.pack(side=RIGHT,padx=2,pady=2)
+       
         
     def send_button(self,msg):
         self.msg = msg
         self.snd_button.config(state=DISABLED)
         self.entry_command.delete(0, END)
-        snd = threading.Thread(target=self.send_msg) 
-        snd.start()   
-    
-    def send_msg(self):
         
         def get_packet_count(filename):
             byte_size = os.stat(filename).st_size
@@ -226,7 +223,8 @@ class GUI:
                    
             except Exception as e:
                 # an error will be printed on the command line or console if there's an error
-                print(f"An error occurred! :{e}")
+                # print(f"An error occurred! :{e}")
+                print(e)
                 client.close()
                 self.window.destroy()
                 break

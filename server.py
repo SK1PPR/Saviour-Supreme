@@ -1,8 +1,10 @@
+#!/usr/bin/env python3
 import os
 import socket
 import threading
 from tqdm import tqdm
 import shutil
+import time
 
 IP = socket.gethostbyname(socket.gethostname())
 PORT = 4456
@@ -153,7 +155,6 @@ def change_dir(conn, data):
         if(len(temp)==1):
             send_data = "MSG@ALREADY AT ROOT"
             conn.send(send_data.encode(FORMAT))
-            return
         else:
             temp.pop()
             SERVER_DATA_PATH = '/'.join(temp)
@@ -161,12 +162,13 @@ def change_dir(conn, data):
     elif not os.path.exists(os.path.join(SERVER_DATA_PATH, data[1])):
         send_data = "MSG@INVALID DIRECTORY"
         conn.send(send_data.encode(FORMAT))
-        return
     
     else:
         SERVER_DATA_PATH = os.path.join(SERVER_DATA_PATH, data[1])
-    send_data = f"MSG@Directory changed to {data[1]}"
-    conn.send(send_data.encode(FORMAT))
+        send_data = f"MSG@Directory changed to {data[1]}"
+        conn.send(send_data.encode(FORMAT))
+        time.sleep(0.001)
+        list(conn)
 
 def rename(conn,data):
     path_init = os.path.join(SERVER_DATA_PATH,data[1])
@@ -174,7 +176,10 @@ def rename(conn,data):
     try:
         os.rename(path_init, path_final)
         send_data = "MSG@RENAME SUCCESSFUL"
-        conn.send(send_data.encode(FORMAT))  
+        conn.send(send_data.encode(FORMAT))
+        time.sleep(0.001)
+        for client in clients:
+            list(client)
     except FileNotFoundError:
         send_data = "MSG@FILE NOT FOUND"
         conn.send(send_data.encode(FORMAT))
@@ -182,9 +187,7 @@ def rename(conn,data):
         print(f"An error occurred while renaming the file: {e}")
         send_data = "MSG@INVALID COMMAND"
         conn.send(send_data.encode(FORMAT))
-    else:
-        for client in clients:
-            list(client)
+        
     
 def move(conn,data):
     path_init = os.path.join(SERVER_DATA_PATH,data[1])
