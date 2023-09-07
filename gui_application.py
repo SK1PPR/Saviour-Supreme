@@ -7,6 +7,8 @@ from tqdm import tqdm
 import time
 from Crypto.Cipher import AES
 from ratelimit import limits, sleep_and_retry
+import phone_server as ps
+import qrcode
 
 #Global function to limit the number of api calls
 CALLS = 30
@@ -46,6 +48,31 @@ CLIENTS = []
 THREADS = []
 THEME = 'DarkBlue3'
 
+http = ""
+
+def phone_server():
+    global http
+    data = f'http://{my_eip}:8000'
+    img = qrcode.make(data)
+    img.save('ServerQR.png')
+    t = threading.Thread(target=qr)
+    t.start()
+    
+    http = ps.start(SERVER_PATH)
+          
+def qr():
+    global http
+    layout = [[sg.Image('ServerQR.png',key='QR',size=(300,300))],
+              [sg.Button('Close')]]
+    
+    window = sg.Window('PhoneServer', layout, element_justification='c')
+    
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Close':
+            ps.close(http)
+            break
+    window.close()
 
 class Client:
     global my_eip
@@ -266,7 +293,10 @@ class Server:
                     client.send('OK'.encode(FORMAT))
                 self.change_val('Pinged all clients')
             elif event == 'Share to phone':
-                sg.popup_no_buttons('Coming soon!')
+                # sg.popup_no_buttons('Coming soon!')
+                t = threading.Thread(target=phone_server)
+                THREADS.append(t)
+                t.start()
                 
             
     def server_handler(self):
@@ -416,7 +446,9 @@ class Server:
 
         conn.send('MSG@@File uploaded successfully'.encode(FORMAT))
         time.sleep(0.1)
-        self.send_dir(conn,path)
+        for client in CLIENTS:
+            self.send_dir(client,path)
+        
 
 
     def delete(self,conn,data,path):
@@ -436,7 +468,8 @@ class Server:
         conn.send(send_data.encode(FORMAT))
         self.change_val(f'{conn} deleted {filename}')
         time.sleep(0.1)
-        self.send_dir(conn,path)
+        for client in CLIENTS:
+            self.send_dir(client,path)
     
     
     def invalid(self,conn):
@@ -555,7 +588,8 @@ class Server:
             conn.send(send_data.encode(FORMAT))
             self.change_val(f'{conn} changed {path_init} to {path_final}')
             time.sleep(0.1)
-            self.send_dir(conn, path)
+            for client in CLIENTS:
+                self.send_dir(client,path)
         except FileNotFoundError:
             send_data = "MSG@@FILE NOT FOUND"
             conn.send(send_data.encode(FORMAT))
