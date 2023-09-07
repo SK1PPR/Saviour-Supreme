@@ -10,8 +10,6 @@ def start(path):
     httpd = socketserver.TCPServer(("", PORT), handler)
     print("serving at port", PORT)
     httpd.serve_forever()
-    
-    return httpd
 
 def stop(ser):
     ser.shutdown()

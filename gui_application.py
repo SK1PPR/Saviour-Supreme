@@ -48,32 +48,19 @@ CLIENTS = []
 THREADS = []
 THEME = 'DarkBlue3'
 
-http = ""
+started = False
 
 def phone_server():
-    global http
+    global started
     data = f'http://{my_eip}:8000'
     img = qrcode.make(data)
     img.save('ServerQR.png')
-    t = threading.Thread(target=qr)
-    t.start()
+    file_path = os.path.join(os.path.dirname(__file__),'ServerQR.png')    
+    sg.popup_no_buttons(image=file_path,title='ScanQR')
+    if not started:
+        ps.start(SERVER_PATH)
+        started = True 
     
-    http = ps.start(SERVER_PATH)
-          
-def qr():
-    global http
-    file_path = os.path.join(os.path.dirname(__file__),'ServerQR.png')
-    layout = [[sg.Image(file_path,key='QR',size=(300,300))],
-              [sg.Button('Close')]]
-    
-    window = sg.Window('PhoneServer', layout, element_justification='c')
-    
-    while True:
-        event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Close':
-            ps.close(http)
-            break
-    window.close()
 
 class Client:
     global my_eip

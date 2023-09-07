@@ -20,6 +20,10 @@ For security of the server, features implemented are:
 2. Server Logging
 3. Rate Limiting
 
+##Update
+
+Added file sharing to andriod phone
+
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first
