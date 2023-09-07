@@ -4,8 +4,14 @@ import os
 import socket
 import threading
 from tqdm import tqdm
-import shutil
 import time
+from Crypto.Cipher import AES
+
+#Data Encrytion
+KEY = b"ByKhushalAgrawal"
+NONCE = b"NcKhushalAgrawal"
+e_cipher = AES.new(KEY, AES.MODE_EAX, NONCE)
+d_cipher = AES.new(KEY, AES.MODE_EAX, NONCE)
 
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 s.connect(('8.8.8.8', 80))
@@ -27,35 +33,39 @@ ADDR_DATA = (my_eip,PORT_DATA)
 STOP_THREADS = False
 
 CLIENTS = []
-
 THREADS = []
+THEME = 'DarkBlue3'
 
-THEME = 'DarkGray4'
 
 class Client:
     global my_eip
     global PORT
     def __init__(self,is_admin):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((my_eip,PORT))
-        if(is_admin):
-            layout = [[sg.Text('Enter password: '),sg.InputText(key='password',font=16,password_char='*')],
-                      [sg.Button('Submit')]]
-            window = sg.Window('Authentication', layout, element_justification='c')
-            while True:
-                event, values = window.read()
-                if event == sg.WIN_CLOSED:
-                    break
-                elif event == 'Submit':
-                    msg = values['password']
-                    self.sock.send(f'T2@@{msg}'.encode(FORMAT))
-                    break
-            window.close()
-        else:
-            self.sock.send('T1'.encode(FORMAT))
-        
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.connect((my_eip,PORT))
+            if(is_admin):
+                layout = [[sg.Text('Enter password: '),sg.InputText(key='password',font=16,password_char='*')],
+                        [sg.Button('Submit')]]
+                window = sg.Window('Authentication', layout, element_justification='c')
+                while True:
+                    event, values = window.read()
+                    if event == sg.WIN_CLOSED:
+                        break
+                    elif event == 'Submit':
+                        msg = values['password']
+                        self.sock.send(f'T2@@{msg}'.encode(FORMAT))
+                        break
+                window.close()
+            else:
+                self.sock.send('T1'.encode(FORMAT))
+            
 
-        self.create_window()
+            self.create_window()
+        except Exception as e:
+            print(e)
+            sg.popup_no_buttons('There seems to be trouble connecting...\nPlease try again!')
+            join()
         
     
     #change directory, move
@@ -66,8 +76,8 @@ class Client:
                       [sg.Button('Delete')],
                       [sg.Button('Upload')],
                       [sg.Button('Rename')],
-                      [sg.Button('Logout')],
-                      [sg.Button('CD'),sg.Button('./')]]
+                      [sg.Button('CD'),sg.Button('./')],
+                      [sg.Button('Logout')]]
         layout = [[sg.Column(first_col), sg.VSeparator(), sg.Column(second_col)],
                   [sg.HSeparator()],
                   [sg.Text('Server Response: '), sg.Input(size=(20,1),font=16,key='resp',disabled=True)]]
@@ -100,7 +110,7 @@ class Client:
             elif event == 'Upload':
                 file = sg.popup_get_file('Select a file',title='Upload File')
                 print(file)
-                if not file == 'None':
+                if file != 'None':
                     self.sock.send(f'UPLOAD@@{file}'.encode(FORMAT))
             elif event == 'Rename':
                 text = sg.popup_get_text('Enter new filename',title='Rename')
@@ -158,9 +168,10 @@ class Client:
                     with open(file_name, 'wb') as file:
                         while True:
                             file_data = self.sock_data.recv(SIZE)
+                            dcrypt_data = d_cipher.decrypt(file_data)
                             if not file_data:
                                 break
-                            file.write(file_data)
+                            file.write(dcrypt_data)
                     self.sock_data.close()
                     self.change_val(f'Downloaded {file_name} successfully')
                 elif cmd == 'UPL':
@@ -177,7 +188,9 @@ class Client:
                     f = open(path, 'rb')
                     self.change_val(f'Sending {packet_count} packets')
                     while packet_count > 0:
-                        self.sock_data.send(f.read(SIZE))
+                        file_data = f.read(SIZE)
+                        ecypt_data = e_cipher.encrypt(file_data)
+                        self.sock_data.send(ecypt_data)
                         packet_count -= 1
                     f.close()
                     self.sock_data.close()
@@ -187,6 +200,7 @@ class Client:
                     break
             except:
                 continue
+      
           
 class Server:
     global my_eip
@@ -199,7 +213,7 @@ class Server:
         global STOP_THREADS
         layout = [[sg.Text(f'Server is listening on {my_eip}')],
                 [sg.Multiline(size=(60,20),font=16,key='textbox',disabled=True)],
-                [sg.Button('Close'),sg.Button('Change')]]
+                [sg.Button('Close'),sg.Button('Ping'),sg.Button('Share to phone')]]
         self.window = sg.Window('Server Logs', layout, element_justification='c')
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -222,10 +236,13 @@ class Server:
                 for t in THREADS:
                     t.join()
                 break
-            elif event == 'Change':
+            elif event == 'Ping':
                 for client in CLIENTS:
                     client.send('OK'.encode(FORMAT))
-                self.change_val('Password changed!')
+                self.change_val('Pinged all clients')
+            elif event == 'Share to phone':
+                sg.popup_no_buttons('Coming soon!')
+                
                 
         
     
@@ -244,13 +261,14 @@ class Server:
             except:
                 continue
             
-    
+            
     def change_val(self,message):
         global msg
         self.window['textbox'].update(disabled=False)
         msg += message
         self.window['textbox'].update(msg)
         self.window['textbox'].update(disabled=True)
+        
         
     def handle_client(self,conn, addr):
         msg = f'[NEW CONNECTION] {addr} connected\n'
@@ -269,7 +287,7 @@ class Server:
             conn.send(msg.encode(FORMAT))
             conn.close()
         
-    
+        
     def handle_guest(self,conn,addr):
         conn.send("OK".encode(FORMAT))
         time.sleep(0.1)
@@ -302,8 +320,6 @@ class Server:
             elif cmd == "CD":
                 local_server_path = self.change_dir(conn,data,local_server_path)
             elif cmd == "RENAME":
-                self.invalid(conn)
-            elif cmd == "MOVE":
                 self.invalid(conn)
             
             if STOP_THREADS:
@@ -341,13 +357,11 @@ class Server:
                 local_server_path = self.change_dir(conn,data,local_server_path)
             elif cmd == "RENAME":
                 self.rename(conn,data,local_server_path)
-            elif cmd == "MOVE":
-                self.move(conn,data)
                 
             if STOP_THREADS:
                 break
-                
-                
+                           
+                           
     #commands
     def send_dir(self,conn,local_server_dir):
         files = os.listdir(local_server_dir)
@@ -358,6 +372,7 @@ class Server:
         else:
             send_data += "\n".join(f for f in files)
         conn.send(send_data.encode(FORMAT))
+
 
     def upload(self,conn,data,path):
         msg = f'UPL@@{data[1]}'
@@ -370,13 +385,15 @@ class Server:
         with open(received_file_name,"wb") as file:
             while True:
                 file_data = conn_data.recv(SIZE)
+                dcypt_data = d_cipher.decrypt(file_data)
                 if not file_data:
                     break
-                file.write(file_data)   
+                file.write(dcypt_data)   
 
         conn.send('MSG@@File uploaded successfully'.encode(FORMAT))
         time.sleep(0.1)
         self.send_dir(conn,path)
+
 
     def delete(self,conn,data,path):
         files = os.listdir(path)
@@ -393,16 +410,20 @@ class Server:
                 send_data += "File not found."
  
         conn.send(send_data.encode(FORMAT))
+        self.change_val(f'{conn} deleted {filename}')
         time.sleep(0.1)
         self.send_dir(conn,path)
+    
     
     def invalid(self,conn):
         send_data = "MSG@@Invalid Command"
         conn.send(send_data.encode(FORMAT))
 
+
     def logout(self,conn,addr):
         self.change_val(f'[DISCONNECTED] {addr} disconnected')
         conn.close()
+    
     
     def help_guest(self,conn):
         data = "HELP@@"
@@ -415,6 +436,7 @@ class Server:
         data += "HELP: List all the commands."
  
         conn.send(data.encode(FORMAT))
+
 
     def help_admin(self,conn):
         data = "HELP@@"
@@ -432,6 +454,7 @@ class Server:
  
         conn.send(data.encode(FORMAT))
 
+
     def access_denied(self,conn):
         conn.send("MSG@@Access Denied".encode(FORMAT))
     
@@ -443,7 +466,7 @@ class Server:
             packet_count += 1
         return packet_count   
     
-
+    
     def download(self,conn,data,local_server_path):
         path =  local_server_path+ "/" + data[1]
     
@@ -462,11 +485,14 @@ class Server:
         f = open(path, "rb")
         self.change_val(f"Sending {path} with {packet_count} packets to {addr_data}\n")
         while packet_count > 0 :
-            conn_data.send(f.read(SIZE))
+            file_data = f.read(SIZE)
+            encypt_data = e_cipher.encrypt(file_data)
+            conn_data.send(encypt_data)
             packet_count -= 1
             bar.update(1024)
         f.close()
         conn.send("MSG@@DOWNLOADED FILE".encode(FORMAT))
+
 
     def change_dir(self,conn, data,local_server_path):
         global SERVER_PATH
@@ -495,66 +521,33 @@ class Server:
  
         return local_server_path
 
+
     def rename(self,conn,data,path):
         path_init = path+'/' + data[1]
-        path_final = path+ '/' + data[2]
+        path_final = path+'/'+ data[2]
         try:
             os.rename(path_init, path_final)
-            send_data = "MSG@RENAME SUCCESSFUL"
+            send_data = "MSG@@RENAME SUCCESSFUL"
             conn.send(send_data.encode(FORMAT))
             self.change_val(f'{conn} changed {path_init} to {path_final}')
             time.sleep(0.1)
             self.send_dir(conn, path)
         except FileNotFoundError:
-            send_data = "MSG@FILE NOT FOUND"
+            send_data = "MSG@@FILE NOT FOUND"
             conn.send(send_data.encode(FORMAT))
         except OSError as e:
             print(f"An error occurred while renaming the file: {e}")
-            send_data = "MSG@INVALID COMMAND"
-            conn.send(send_data.encode(FORMAT))
-        
-    
-    def move(self,conn,data):
-        path_init = os.path.join(SERVER_PATH,data[1])
-        path_final = os.path.join(SERVER_PATH,data[2])
-        try:
-            shutil.move(path_init, path_final)
-            send_data = "MSG@FILE MOVED SUCCESSFULLY"
-            conn.send(send_data.encode(FORMAT))  
-        except FileNotFoundError:
-            send_data = "MSG@FILE NOT FOUND"
-            conn.send(send_data.encode(FORMAT))
-        except OSError as e:
-            self.change_val(f"An error occurred while moving the file: {e}")
             send_data = "MSG@@INVALID COMMAND"
             conn.send(send_data.encode(FORMAT))
-        # else:
-        #     for client in clients:
-        #         list(client)
-        
-def start_server():
-    global SERVER_PASS
-    sg.theme(THEME)
-    layout = [[sg.Text('The last step ...')],
-              [sg.Text('Password for admin login: ',font=16), sg.InputText(key='password',font=16)],
-              [sg.Button('Create')]]
-    window = sg.Window('Credentials',layout,element_justification='c')
-    while True:
-        event,values = window.read()
-        if event == sg.WIN_CLOSED:
-            window.close()
-            break
-        elif event == 'Create':
-            SERVER_PASS = values['password']
-            window.close()
-            Server()
-            break
-    
+              
+              
 def create():
     global SERVER_PATH
+    global SERVER_PASS
     sg.theme(THEME)
     layout = [[sg.Text('Create your server', size=(15,1), font=40, justification='c')],
               [sg.Text('Choose Server location: '), sg.FolderBrowse(key='IN')],
+              [sg.Text('Password for admin login: ',font=16), sg.InputText(key='password',font=16,size=(10,1),password_char='*')],
               [sg.Button('Submit'), sg.Button('Exit')]]
     window = sg.Window('Server Settings',layout, element_justification='c')
     while True:
@@ -563,17 +556,26 @@ def create():
             window.close()
             break
         elif event == 'Submit':
-            SERVER_PATH = values['IN']
-            window.close()
-            start_server()
-            break
+            if values['IN'] == '':
+                sg.popup_no_buttons('Please select a valid address')
+                create()
+            elif values['password'] == '':
+                sg.popup_no_buttons('Please enter a password')
+                create()
+            else:
+                SERVER_PATH = values['IN']
+                SERVER_PASS = values['password']
+                window.close()
+                Server()
+                break     
+
 
 def join():
     global CLIENT_DOWN
     global my_eip
     sg.theme(THEME)
     layout = [[sg.Text('Join a server', size=(15,1), font=40, justification='c')],
-              [sg.Text('Enter the server IP Address: '), sg.InputText(key='IP',font=16)],
+              [sg.Text('Enter the server IP Address: '), sg.InputText(key='IP',font=16,size=(20,1))],
               [sg.Text('Select download folder:') , sg.FolderBrowse(key='download')],
               [sg.Button('Guest'), sg.Button('Admin'), sg.Button('Exit')]]
     window = sg.Window('Join Server', layout, element_justification='c')
@@ -584,7 +586,10 @@ def join():
         elif events == 'Guest' or events == 'Admin':
             my_eip = values['IP']
             CLIENT_DOWN = values['download']
-            if events == 'Admin':
+            if CLIENT_DOWN == '':
+                sg.popup_no_buttons('Please select a valid address')
+                join()
+            elif events == 'Admin':
                 window.close()
                 Client(True)
             else :
@@ -592,7 +597,7 @@ def join():
                 Client(False)
             break
     
-
+    
 def welcome():
     sg.theme(THEME)
     layout = [[sg.Text("Welcome to Saviour Supreme",size=(25,1),font=40,justification='c')],
@@ -611,5 +616,6 @@ def welcome():
             window.close()
             join()
             break
+     
         
 welcome()
