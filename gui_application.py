@@ -6,6 +6,16 @@ import threading
 from tqdm import tqdm
 import time
 from Crypto.Cipher import AES
+from ratelimit import limits, sleep_and_retry
+
+#Global function to limit the number of api calls
+CALLS = 30
+RATE_LIMIT = 60
+
+@sleep_and_retry
+@limits(calls=CALLS, period=RATE_LIMIT)
+def check_limit():
+    '''Empty function just to count the number of calls'''
 
 #Data Encrytion
 KEY = b"ByKhushalAgrawal"
@@ -91,6 +101,7 @@ class Client:
             global STOP_THREADS
             event, values = self.window.read()
             if event == sg.WIN_CLOSED or event == 'Logout':
+                check_limit()
                 self.sock.send('LOGOUT'.encode(FORMAT))
                 self.sock.close()
                 self.window.close()
@@ -99,33 +110,43 @@ class Client:
                     t.join()
                 break
             elif event == 'Help':
+                check_limit()
                 self.sock.send('HELP'.encode(FORMAT))
             elif event == 'Delete':
+                check_limit()
                 file = values['file_list'][0]
                 msg = f'DELETE@@{file}'.encode(FORMAT)
                 self.sock.send(msg)
             elif event == 'Download':
+                check_limit()
                 file = values['file_list'][0]
                 self.sock.send(f'DOWNLOAD@@{file}'.encode(FORMAT))
             elif event == 'Upload':
+                check_limit()
                 file = sg.popup_get_file('Select a file',title='Upload File')
                 print(file)
                 if file != 'None':
                     self.sock.send(f'UPLOAD@@{file}'.encode(FORMAT))
             elif event == 'Rename':
+                check_limit()
                 text = sg.popup_get_text('Enter new filename',title='Rename')
                 filen = values['file_list'][0]
                 msg = f'RENAME@@{filen}@@{text}'
                 self.sock.send(msg.encode(FORMAT))
             elif event == 'CD':
-                folder = values['file_list'][0].split('.')
-                if len(folder)==1:
-                    msg = f'CD@@{folder[0]}'
-                    self.sock.send(msg.encode(FORMAT))
+                check_limit()
+                if not values['file_list']:
+                    sg.popup_no_buttons('Please select a folder',title='Error')
                 else:
-                    #add download file and open feature here
-                    self.change_val('Invalid Diectory')
+                    folder = values['file_list'][0].split('.')
+                    if len(folder)==1:
+                        msg = f'CD@@{folder[0]}'
+                        self.sock.send(msg.encode(FORMAT))
+                    else:
+                        #add download file and open feature here
+                        self.change_val('Invalid Diectory')
             elif event == './':
+                check_limit()
                 self.sock.send('CD@@./'.encode(FORMAT))
                     
                     
@@ -137,7 +158,11 @@ class Client:
         self.window['resp'].update(disabled=True)
         
     def change_list(self,val):
-        self.window['file_list'].update(val)
+        show = []
+        for v in val:
+            if v != '.DS_Store':
+                show.append(v)
+        self.window['file_list'].update(show)
                
     def receive(self):
         time.sleep(0.1)
@@ -243,9 +268,7 @@ class Server:
             elif event == 'Share to phone':
                 sg.popup_no_buttons('Coming soon!')
                 
-                
-        
-    
+            
     def server_handler(self):
         while True:
             try: 
@@ -319,6 +342,7 @@ class Server:
                 self.download(conn,data,local_server_path)
             elif cmd == "CD":
                 local_server_path = self.change_dir(conn,data,local_server_path)
+                print(local_server_path)
             elif cmd == "RENAME":
                 self.invalid(conn)
             
