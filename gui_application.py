@@ -62,7 +62,8 @@ def phone_server():
           
 def qr():
     global http
-    layout = [[sg.Image('ServerQR.png',key='QR',size=(300,300))],
+    file_path = os.path.join(os.path.dirname(__file__),'ServerQR.png')
+    layout = [[sg.Image(file_path,key='QR',size=(300,300))],
               [sg.Button('Close')]]
     
     window = sg.Window('PhoneServer', layout, element_justification='c')
